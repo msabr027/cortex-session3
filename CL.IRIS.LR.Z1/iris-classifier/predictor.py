@@ -1,23 +1,29 @@
+import os
+import boto3
+from botocore import UNSIGNED
+from botocore.client import Config
 import pickle
-import numpy as np
 
-
-model = None
 labels = ["setosa", "versicolor", "virginica"]
 
 
-def init(model_path, metadata):
-    global model
-    model = pickle.load(open(model_path, "rb"))
+class PythonPredictor:
+    def __init__(self, config):
+        if os.environ.get("AWS_ACCESS_KEY_ID"):
+            s3 = boto3.client("s3")  # client will use your credentials if available
+        else:
+            s3 = boto3.client("s3", config=Config(signature_version=UNSIGNED))  # anonymous client
 
+        s3.download_file(config["bucket"], config["key"], "/tmp/model.pkl")
+        self.model = pickle.load(open("/tmp/model.pkl", "rb"))
 
-def predict(sample, metadata):
-    measurements = [
-        sample["sepal_length"],
-        sample["sepal_width"],
-        sample["petal_length"],
-        sample["petal_width"],
-    ]
+    def predict(self, payload):
+        measurements = [
+            payload["sepal_length"],
+            payload["sepal_width"],
+            payload["petal_length"],
+            payload["petal_width"],
+        ]
 
-    label_id = model.predict(np.array([measurements]))[0]
-    return labels[label_id]
+        label_id = self.model.predict([measurements])[0]
+        return labels[label_id]
